@@ -11,33 +11,23 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
-
 <body>
     <nav class="navbar">
         <div class="navbar-left">
             <a href="{{ url_for('dashboard') }}">Dashboard</a>
-            <a href="{{ url_for('book_appointment')}}">Book Appointment</a>
+            <a href="{{ url_for('book_appointment') }}">Book Appointment</a>
             <a href="{{ url_for('faqs') }}">FAQs</a>
             {% if isadmin %}
-            <a href="{{ url_for('admin_dashboard') }}">Admin</a>
+                <a href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>
+            {% elif is_advisor %}
+                <a href="{{ url_for('appointments') }}">Your Students</a>
             {% endif %}
-        </div>
-        <div class="navbar-left"></div>
-        <div class="navbar-left"></div>
-        <div class="navbar-left"></div>
-        <div class="navbar-left"></div>
-        <div class="navbar-left"></div>
-        <div class="navbar-left"></div>
-        <div class="navbar-left"></div>
-        <div class="navbar-left"></div>
-        <div class="navbar-left"></div>
-        <div class="navbar-center">
-            <span id="welcome-message">Welcome, {{ username }}!</span>
         </div>
         <div class="navbar-right">
             <button onclick="logout()">Logout</button>
         </div>
     </nav>
+
     <div class="admin-panel">
         <!-- Sidebar -->
         <aside class="sidebar">
@@ -49,20 +39,36 @@
 
         <!-- Main Content -->
         <main id="content" class="content">
+            {% if isadmin %}
+                <!-- Admin Content -->
+                <h2>Admin Panel</h2>
+                <p>You have full access to manage users, appointments, courses, and more.</p>
+            {% elif is_advisor %}
+                <!-- Advisor Content -->
+                <h2>Advisor Dashboard</h2>
+                <p>Here you can view your assigned students and manage their appointments.</p>
+            {% elif is_it_staff %}
+                <!-- IT Staff Content -->
+                <h2>IT Staff Dashboard</h2>
+                <p>You have access to manage users, time slots, and system configurations.</p>
+            {% else %}
+                <!-- Student Content -->
+                <h2>Student Dashboard</h2>
+                <p>You can book appointments with your advisor and view FAQs.</p>
+            {% endif %}
+            
             <div class="chatbot-container">
                 <div class="chat-display" id="chat-display">
-                    <p><strong><span style="color: rgb(138, 0, 69);">Bot:</span></strong> Hi there! How can I assist you
-                        today?
-                    </p>
+                    <p><strong><span style="color: rgb(138, 0, 69);">Bot:</span></strong> Hi there! How can I assist you today?</p>
                 </div>
                 <div class="chat-input">
-                    <textarea id="user-input" placeholder="Type your message here..."
-                        onkeydown="handleEnter(event)"></textarea>
+                    <textarea id="user-input" placeholder="Type your message here..." onkeydown="handleEnter(event)"></textarea>
                     <button onclick="sendMessage()">Send</button>
                 </div>
             </div>
         </main>
     </div>
+
     <!-- Correctly link JS files using Flask's url_for -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>

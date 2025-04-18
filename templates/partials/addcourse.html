@@ -130,26 +130,21 @@
         <!-- Main Content -->
         <main id="content" class="content">
 
+            {% if not isadmin and not is_it_staff %}
+            <p style="color: rgb(130, 5, 5); text-align: center; font-weight: bold;">
+                You are not authorized to access this page!
+            </p>
+            {% else %}
             <div class="container">
-                <h1>Add Courses</h1>
-
-                {% if error %}
-                <div class="message" style="color: rgb(130, 5, 5);">{{ error }}</div>
-                {% endif %}
-                {% if success %}
-                <div class="message" style="color: rgb(10, 161, 75);">{{ success }}</div>
-                {% endif %}
-
+                <h1>Add Course</h1>
+                ...
                 <form method="POST" action="/api/add_course">
                     <label for="course_name">Course Name:</label>
                     <input type="text" id="course_name" name="course_name" required><br><br>
-
-                    <label for="description">Description:</label>
-                    <textarea id="description" name="description" required></textarea><br><br>
-
-                    <button type="submit">Add Course</button>
+                    ...
                 </form>
             </div>
+            {% endif %}
         </main>
     </div>
     <script src="{{ url_for('static', filename='JS/script.js') }}"></script>

@@ -125,30 +125,26 @@
 
         <!-- Main Content -->
         <main id="content" class="content">
+            {% if not isadmin %}
+            <p style="color: rgb(130, 5, 5); text-align: center; font-weight: bold;">
+                You are not authorized to access this page!
+            </p>
+            {% else %}
             <div class="container">
                 <h1>Add Advisor</h1>
-
-                {% if error %}
-                <div class="message" style="color: rgb(130, 5, 5);">{{ error }}</div>
-                {% endif %}
-                {% if success %}
-                <div class="message" style="color: rgb(10, 161, 75);">{{ success }}</div>
-                {% endif %}
-
+                ...
                 <form method="POST" action="/api/add_doctor">
                     <label for="name">Name:</label>
                     <input type="text" id="name" name="name" required><br><br>
-
-                    <label for="specialization">Specialization:</label>
-                    <input type="text" id="specialization" name="specialization" required><br><br>
-
-                    <button type="submit">Add Doctor</button>
+                    ...
                 </form>
             </div>
+            {% endif %}
         </main>
     </div>
-    <script src="{{ url_for('static', filename='JS/script.js') }}"></script>
 
+    <script src="{{ url_for('static', filename='JS/script.js') }}"></script>
 </body>
+
 
 </html>

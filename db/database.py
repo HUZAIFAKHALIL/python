@@ -17,7 +17,9 @@ def init_db():
             username    TEXT NOT NULL,
             email       TEXT UNIQUE NOT NULL,
             password    TEXT NOT NULL,
-            isadmin     INTEGER DEFAULT 0
+            isadmin     INTEGER DEFAULT 0,
+            advisor_id  INTEGER,  -- Add advisor_id column
+            FOREIGN KEY (advisor_id) REFERENCES Advisors(advisor_id)  -- Foreign key to Advisors table
         );
         """,
         """

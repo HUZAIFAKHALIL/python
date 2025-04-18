@@ -108,7 +108,7 @@
                     <li><a href="{{ url_for('addcourse') }}">Add Courses</a></li>
                 </ul>
             </aside>
-
+    
             <!-- Main Content -->
             <main id="content" class="content">
                 <h1>All Appointments</h1>
@@ -136,28 +136,48 @@
             </main>
         </div>
         <script src="{{ url_for('static', filename='JS/script.js') }}"></script>
-
+    
         <script>
-            // Fetch appointment data and populate the table
+            const isAdmin = "{{ isadmin | tojson }}";
+            const isItStaff = "{{ is_it_staff | tojson }}";
+            const isAdvisor = "{{ is_advisor | tojson }}";
+            const username = "{{ username }}";
+        
             fetch('/api/appointments_data')
                 .then(response => response.json())
                 .then(appointments => {
                     const tableBody = document.querySelector('#appointmentTable tbody');
-                    tableBody.innerHTML = appointments.map(appt => `
-                        <tr>
-                            <td>${appt.id}</td>
-                            <td>${appt.student}</td>
-                            <td>${appt.advisor}</td>
-                            <td>${appt.date}</td>
-                            <td>${appt.time_slot}</td>
-                            <td>
+                    tableBody.innerHTML = appointments.map(appt => {
+                        let actions = '';
+    
+                        // Only allow Admin and IT staff to delete appointments
+                        if (isAdmin || isItStaff) {
+                            actions += `
                                 <form method="POST" action="/api/delete_appointment" style="display:inline;">
                                     <input type="hidden" name="appointment_id" value="${appt.id}">
                                     <button type="submit" style="color: red;">Delete</button>
                                 </form>
-                            </td>
-                        </tr>
-                    `).join('');
+                            `;
+                        }
+    
+                        // Advisors should only see their own appointments and cannot delete them
+                        if (isAdvisor && appt.advisor === username) {
+                            actions += `
+                                <p>Appointment with ${appt.student}</p>
+                            `;
+                        }
+    
+                        return `
+                            <tr>
+                                <td>${appt.id}</td>
+                                <td>${appt.student}</td>
+                                <td>${appt.advisor}</td>
+                                <td>${appt.date}</td>
+                                <td>${appt.time_slot}</td>
+                                <td>${actions}</td>
+                            </tr>
+                        `;
+                    }).join('');
                 })
                 .catch(error => console.error('Error loading appointments:', error));
         </script>

@@ -18,21 +18,26 @@
             </div>
             <ul class="menu">
                 <li><a href="{{ url_for('dashboard') }}">Home</a></li>
+                <!-- Only show to Admin -->
+                {% if isadmin %}
                 <li><a href="{{ url_for('users') }}">View All Users</a></li>
                 <li><a href="{{ url_for('appointments') }}">View All Appointments</a></li>
                 <li><a href="{{ url_for('addappointmentslots') }}">Add Appointment Slots</a></li>
                 <li><a href="{{ url_for('adddoctor') }}">Add Doctor</a></li>
                 <li><a href="{{ url_for('courses') }}">View All Courses</a></li>
                 <li><a href="{{ url_for('addcourse') }}">Add Courses</a></li>
+                {% endif %}
             </ul>
         </aside>
 
         <!-- Main Content -->
         <main id="content" class="content">
-            <h1>Welcome, {{username}}!</h1>
+            <h1>Welcome, {{ username }}!</h1>
             <p>Select an option from the sidebar to manage the website.</p>
         </main>
     </div>
+
     <script src="{{ url_for('static', filename='JS/script.js') }}"></script>
 </body>
+
 </html>

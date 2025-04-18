@@ -91,7 +91,6 @@
     }
     </style>
 </head>
-
 <body>
     <div class="admin-panel">
         <!-- Sidebar -->
@@ -132,29 +131,43 @@
     <script src="{{ url_for('static', filename='JS/script.js') }}"></script>
 
     <script>
-        // Fetch user data and populate the table
         fetch('/api/users_data')
             .then(response => response.json())
             .then(users => {
                 const tableBody = document.querySelector('#userTable tbody');
-                tableBody.innerHTML = users.map(user => `
-                    <tr>
-                        <td>${user.id}</td>
-                        <td>${user.username}</td>
-                        <td>${user.email}</td>
-                        <td>${user.isadmin ? 'Yes' : 'No'}</td>
-                        <td>
+                tableBody.innerHTML = users.map(user => {
+                    let adminStatus = user.isadmin === 1 ? 'Yes' : 'No';
+                    let actions = '';
+
+                    // Only allow admins and IT staff to toggle admin roles and delete users
+                    if (user.isadmin !== 2 && user.isadmin !== 0) { // Advisors and students can't modify users
+                        actions += `
                             <form method="POST" action="/api/toggle_admin" style="display:inline;">
                                 <input type="hidden" name="user_id" value="${user.id}">
                                 <button type="submit">${user.isadmin ? 'Unappoint as Admin' : 'Appoint as Admin'}</button>
                             </form>
+                        `;
+                    }
+
+                    if (user.isadmin !== 2) { // Advisors can't delete users
+                        actions += `
                             <form method="POST" action="/api/delete_user" style="display:inline;">
                                 <input type="hidden" name="user_id" value="${user.id}">
                                 <button type="submit" style="color: red;">Delete</button>
                             </form>
-                        </td>
-                    </tr>
-                `).join('');
+                        `;
+                    }
+
+                    return `
+                        <tr>
+                            <td>${user.id}</td>
+                            <td>${user.username}</td>
+                            <td>${user.email}</td>
+                            <td>${adminStatus}</td>
+                            <td>${actions}</td>
+                        </tr>
+                    `;
+                }).join('');
             })
             .catch(error => console.error('Error loading users:', error));
     </script>

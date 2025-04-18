@@ -5,7 +5,7 @@ CREATE TABLE Users (
     username    TEXT NOT NULL,
     email       TEXT UNIQUE NOT NULL,
     password    TEXT NOT NULL,
-    isadmin     INTEGER DEFAULT 0
+    isadmin     INTEGER DEFAULT 
 );
 
 CREATE TABLE Chat_Sessions (

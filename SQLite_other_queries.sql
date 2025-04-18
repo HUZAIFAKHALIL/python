@@ -7,23 +7,19 @@ INSERT OR IGNORE INTO Study_plan (study_id, totalcredit, year) VALUES
   (2, 128, 2021);
 
 -- Users (passwords hashed before insertion)
-INSERT OR IGNORE INTO Users (user_id, username, email, password, isadmin) VALUES
-  (1, 'fajr', 'fajr@qu.edu.qa', 'Qustudent1*', 0),
-  (2, 'saja', 'saja@qu.edu.qa', 'Qustudent1*', 0),
-  (3, 'maha', 'maha@qu.edu.qa', 'Qustudent1*', 0),
-  (4, 'olla', 'olla@qu.edu.qa', 'Qustudent1*', 0),
-  (5, 'sara', 'sara@qu.edu.qa', 'Qustudent1*', 0),
-  (6, 'fatma', 'fatma@qu.edu.qa', 'Qustudent1*', 0),
-  (7, 'aisha', 'aisha@qu.edu.qa', 'Qustudent1*', 0),
-  (8, 'haya', 'haya@qu.edu.qa', 'Qustudent1*', 0),
-  (9, 'hamda', 'hamda@qu.edu.qa', 'Qustudent1*', 0),
-  (10, 'alya', 'alya@qu.edu.qa', 'Qustudent1*', 0),
-  (11, 'noora', 'noora@qu.edu.qa', 'Qustudent1*', 1),
-  (12, 'reem', 'reem@qu.edu.qa', 'Qustudent1*', 1),
-  (13, 'Ahmed', 'ahmed@qu.edu.qa', 'Qustudent1*', 1),
-  (14, 'Ali', 'ali@qu.edu.qa', 'Qustudent1*', 1),
-  (15, 'Muneera', 'muneera@qu.edu.qa', 'Qustudent1*', 1),
-  (16, 'Ghada', 'ghada@qu.edu.qa', 'Qustudent1*', 1);
+INSERT OR IGNORE INTO Users (user_id, username, email, password, isadmin, advisor_id) VALUES
+  (1, 'fajr', 'fajr@qu.edu.qa', 'Qustudent1*', 0, 1),  -- User 'fajr' assigned to advisor_id 1
+  (2, 'saja', 'saja@qu.edu.qa', 'Qustudent1*', 0, 1),   -- User 'saja' assigned to advisor_id 1
+  (3, 'maha', 'maha@qu.edu.qa', 'Qustudent1*', 0, 1),   -- User 'maha' assigned to advisor_id 1
+  (4, 'olla', 'olla@qu.edu.qa', 'Qustudent1*', 0, 2),   -- User 'olla' assigned to advisor_id 2
+  (5, 'sara', 'sara@qu.edu.qa', 'Qustudent1*', 0, 2),   -- User 'sara' assigned to advisor_id 2
+  (6, 'fatma', 'fatma@qu.edu.qa', 'Qustudent1*', 0, 2),  -- User 'fatma' assigned to advisor_id 2
+  (7, 'aisha', 'aisha@qu.edu.qa', 'Qustudent1*', 0, 2),  -- User 'aisha' assigned to advisor_id 2
+  (8, 'haya', 'haya@qu.edu.qa', 'Qustudent1*', 0, 1),   -- User 'haya' assigned to advisor_id 1
+  (9, 'hamda', 'hamda@qu.edu.qa', 'Qustudent1*', 0, 1),  -- User 'hamda' assigned to advisor_id 1
+  (10, 'alya', 'alya@qu.edu.qa', 'Qustudent1*', 0, 1),   -- User 'alya' assigned to advisor_id 1
+  (11, 'noora', 'noora@qu.edu.qa', 'Qustudent1*', 3, NULL), -- Advisor 'noora' has no advisor_id
+  (12, 'reem', 'reem@qu.edu.qa', 'Qustudent1*', 3, NULL); -- Advisor 'reem' has no advisor_id
 
 -- Advisors
 INSERT OR IGNORE INTO Advisors (advisor_id, name, specialization, user_id) VALUES

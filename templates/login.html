@@ -26,6 +26,13 @@
 				<input type="email" name="email" placeholder="Email" required="true">
 				<!-- <input type="number" name="phone" placeholder="Phone No." required=""> -->
 				<input type="password" name="password" min="6" placeholder="Password" required="true">
+				<!-- <select name="role" required>
+                    <option value="0">Student</option>
+                    <option value="1">Admin</option>
+                    <option value="2">Advisor</option>
+                    <option value="3">IT Staff</option>
+                </select> -->
+				
 				<button>Register</button>
 			</form>
 		</div>
@@ -35,6 +42,17 @@
 				<label for="chk" aria-hidden="true" id="loginBtn">Login</label>
 				<input type="text" name="user" placeholder="Username" required="true">
 				<input type="password" name="password" placeholder="Password" required="true">
+				{% if role == 1 %}
+				<div class="role-message">Welcome, Admin! You have full access.</div>
+			{% elif role == 2 %}
+				<div class="role-message">Welcome, Advisor! You can manage your students and appointments.</div>
+			{% elif role == 3 %}
+				<div class="role-message">Welcome, IT Staff! You can manage users and courses.</div>
+			{% else %}
+				<div class="role-message">Welcome, Student! You can book appointments with your advisor.</div>
+			{% endif %}
+
+
 				<button>Login</button>
 			</form>
 		</div>
