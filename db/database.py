@@ -1,3 +1,4 @@
+# db\database.py
 import sqlite3
 from config import DATABASE
 

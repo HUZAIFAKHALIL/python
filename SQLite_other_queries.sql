@@ -6,22 +6,23 @@ INSERT INTO Study_plan (study_id, totalcredit, year) VALUES
 (2, 128, 2021);
 
 INSERT INTO Users (user_id, username, email, password, isadmin) VALUES
-(1, 'fajr', 'fajr@university.com', 'password123', 0),
-(2, 'saja', 'saja@university.com', 'password123', 0),
-(3, 'maha', 'maha@university.com', 'password123', 0),
-(4, 'olla', 'olla@university.com', 'password123', 0),
-(5, 'sara', 'sara@university.com', 'password123', 0),
-(6, 'fatma', 'fatma@university.com', 'password123', 0),
-(7, 'aisha', 'aisha@university.com', 'password123', 0),
-(8, 'haya', 'haya@university.com', 'password123', 0),
-(9, 'hamda', 'hamda@university.com', 'password123', 0),
-(10, 'alya', 'alya@university.com', 'password123', 0),
-(11, 'noora', 'noora@university.com', 'adminpass123', 1),
-(12, 'reem', 'reem@university.com', 'adminpass123', 1);
-(11, 'Ahmed', 'ahmed@company.com', 'admin123', 1),
-(12, 'Ali', 'ali@company.com', 'manager123', 1),
-(13, 'Muneera', 'muneera@company.com', 'tech123', 1),
-(14, 'Ghada', 'ghada@company.com', 'support123', 1);
+ (1, 'fajr', 'fajr@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+ (2, 'saja', 'saja@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+ (3, 'maha', 'maha@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+ (4, 'olla', 'olla@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+(5, 'sara', 'sara@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+ (6, 'fatma', 'fatma@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+ (7, 'aisha', 'aisha@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+ (8, 'haya', 'haya@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+(9, 'hamda', 'hamda@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+(10, 'alya', 'alya@university.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 0);
+(11, 'noora', 'noora@university.com', 'e4abae53cc1cebe5fe89ea93882c699a5e71ab0bbf42a83b7d833975b61c4a41', 1);
+ (12, 'reem', 'reem@university.com', 'e4abae53cc1cebe5fe89ea93882c699a5e71ab0bbf42a83b7d833975b61c4a41', 1); 
+ (13, 'Ahmed', 'ahmed@company.com', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 1);
+ (14, 'Ali', 'ali@company.com', '866485796cfa8d7c0cf7111640205b83076433547577511d81f8030ae99ecea5', 1);
+ (15, 'Muneera', 'muneera@company.com', '3ac40463b419a7de590185c7121f0bfbe411d6168699e8014f521b050b1d6653', 1);
+ (16, 'Ghada', 'ghada@company.com', 'a67d22cef2f6639d71b8901b5b2bbee4a2400d92c70e60c179c0fd76d72d6c23', 1);
+
 
 
 INSERT INTO Advisors (advisor_id, name, specialization, user_id) VALUES
