@@ -1,6 +1,7 @@
 # app.py
 import random
 import re
+import sqlite3
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 from config import SECRET_KEY, DATABASE
 import jwt
@@ -14,6 +15,10 @@ import hashlib
 def hash_password(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()
 
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 app = Flask(__name__, template_folder='templates')
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -37,9 +42,11 @@ def get_current_user():
 def index():
     return render_template('index.html')
 
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    error = None
+    otp_required = False
+
     if request.method == 'POST':
         # Retrieve submitted form values
         username = request.form.get('user', '').strip()
@@ -53,9 +60,8 @@ def login():
             if not (username and password):
                 return render_template('login.html', error='Username and password required', otp_required=False)
 
-            # Hash and verify credentials
             hashed_pw = hash_password(password)
-            conn = connect_db()
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
                 'SELECT user_id, username, isadmin FROM Users WHERE username = ? AND password = ?',
@@ -81,32 +87,33 @@ def login():
             return render_template('login.html', otp_required=True)
 
         # Second stage: OTP verification
-        else:
-            saved = session.get('pending_user')
-            saved_otp = session.get('otp_value')
-            if not saved or not saved_otp:
-                # Missing session data, restart login
-                return render_template('login.html', error='Session expired. Please login again.', otp_required=False)
+        saved = session.get('pending_user')
+        saved_otp = session.get('otp_value')
+        if not saved or not saved_otp:
+            return render_template('login.html', error='Session expired. Please login again.', otp_required=False)
 
-            if not otp_input or otp_input != saved_otp:
-                # Invalid OTP
-                return render_template('login.html', error='Invalid OTP! Try again.', otp_required=True)
+        if not otp_input or otp_input != saved_otp:
+            return render_template('login.html', error='Invalid OTP! Try again.', otp_required=True)
 
-            # OTP valid: issue JWT
-            session.pop('otp_value', None)
-            session.pop('pending_user', None)
-            token = jwt.encode({
-                'user_id': saved['user_id'],
-                'username': saved['username'],
-                'isadmin': saved['isadmin'],
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=2)
-            }, app.config['SECRET_KEY'], algorithm='HS256')
-            session['token'] = token
+        # OTP valid: finalize login
+        session.pop('otp_value', None)
+        session.pop('pending_user', None)
+        session['user'] = {
+            'user_id': saved['user_id'],
+            'username': saved['username'],
+            'isadmin': saved['isadmin']
+        }
+        # Redirect based on role
+        if saved['isadmin'] == 1:
+            return redirect(url_for('admin_dashboard'))
+        elif saved['isadmin'] == 2:
+            return redirect(url_for('admin_dashboard'))
+        elif saved['isadmin'] == 3:
+            return redirect(url_for('admin_dashboard'))
+        else:  # isadmin == 0 (student)
             return redirect(url_for('dashboard'))
 
-    # GET request: show credentials form
-    return render_template('login.html', otp_required=False)
-
+    return render_template('login.html', error=error, otp_required=otp_required)
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -156,16 +163,24 @@ def signup():
 
 @app.route('/dashboard')
 def dashboard():
-    user = get_current_user()
+    user = session.get('user')
     if not user:
         return redirect(url_for('login'))
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE username = ?', (user['username'],))
-    row = cursor.fetchone()
-    conn.close()
-    isadmin = bool(row[0]) if row else False
-    return render_template('dashboard.html', username=user['username'], isadmin=isadmin)
+
+    role = user.get('isadmin', 0)
+    is_admin    = (role == 1)
+    is_advisor  = (role == 2)
+    is_it_staff = (role == 3)
+    is_student  = (role == 0)
+
+    return render_template(
+        'dashboard.html',
+        username=user.get('username'),
+        is_admin=is_admin,
+        is_advisor=is_advisor,
+        is_it_staff=is_it_staff,
+        is_student=is_student
+    )
 
 @app.route('/faqs')
 def faqs():
@@ -300,15 +315,12 @@ def get_slots():
 # -- Admin Panel --
 @app.route('/admin')
 def admin_dashboard():
-    user = get_current_user()
+    user = session.get('user')
     if not user:
         return redirect(url_for('login'))
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    isadmin = bool(cursor.fetchone()[0])
-    conn.close()
-    return render_template('admin.html', username=user['username'], isadmin=isadmin)
+    if user['isadmin'] == 0:
+        return redirect(url_for('dashboard'))  # Redirect non-admins to dashboard
+    return render_template('admin.html', username=user['username'], isadmin=user['isadmin'])
 
 # -- Users Management --
 @app.route('/users')
@@ -551,7 +563,7 @@ def update_course_api(course_id):
         conn.close()
         return render_template('partials/viewallcourses.html', error=str(e))
 
-# -- Chat Management --
+# -- Chat Management --@app.route('/api/ask', methods=['POST'])
 @app.route('/api/ask', methods=['POST'])
 def ask_question():
     data = request.json
