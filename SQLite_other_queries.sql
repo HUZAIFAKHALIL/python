@@ -23,7 +23,7 @@ INSERT OR IGNORE INTO Users (user_id, username, email, password, isadmin) VALUES
   (13, 'Ahmed', 'ahmed@qu.edu.qa', 'Qustudent1*', 1),
   (14, 'Ali', 'ali@qu.edu.qa', 'Qustudent1*', 1),
   (15, 'Muneera', 'muneera@qu.edu.qa', 'Qustudent1*', 1),
-  (16, 'Ghada', 'ghada@qu.edu.qa', 'Qustudent1*', 1);
+  (16, 'Ghada', 'ghada@qu.edu.qa', 'Qustudent1*', 2);
 
 -- Advisors
 INSERT OR IGNORE INTO Advisors (advisor_id, name, specialization, user_id) VALUES

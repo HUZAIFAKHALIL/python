@@ -37,9 +37,11 @@ def get_current_user():
 def index():
     return render_template('index.html')
 
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    error = None
+    otp_required = False
+    
     if request.method == 'POST':
         # Retrieve submitted form values
         username = request.form.get('user', '').strip()
@@ -47,12 +49,12 @@ def login():
         otp_input = request.form.get('otp')
         # Determine if we are in OTP stage
         otp_stage = 'otp' in request.form
-
+        
         # First stage: credentials only
         if not otp_stage:
             if not (username and password):
                 return render_template('login.html', error='Username and password required', otp_required=False)
-
+                
             # Hash and verify credentials
             hashed_pw = hash_password(password)
             conn = connect_db()
@@ -63,10 +65,10 @@ def login():
             )
             user = cursor.fetchone()
             conn.close()
-
+            
             if not user:
                 return render_template('login.html', error='Invalid username or password', otp_required=False)
-
+                
             user_id, user_name, isadmin = user
             # Generate OTP, store in session, print to console
             otp_code = f"{random.randint(100000,999999)}"
@@ -79,22 +81,25 @@ def login():
             print(f"OTP for {user_name} (role {isadmin}): {otp_code}")
             # Prompt for OTP input
             return render_template('login.html', otp_required=True)
-
+            
         # Second stage: OTP verification
         else:
             saved = session.get('pending_user')
             saved_otp = session.get('otp_value')
+            
             if not saved or not saved_otp:
                 # Missing session data, restart login
                 return render_template('login.html', error='Session expired. Please login again.', otp_required=False)
-
+                
             if not otp_input or otp_input != saved_otp:
                 # Invalid OTP
                 return render_template('login.html', error='Invalid OTP! Try again.', otp_required=True)
-
-            # OTP valid: issue JWT
+                
+            # OTP valid: set up the session and issue JWT
             session.pop('otp_value', None)
             session.pop('pending_user', None)
+            
+            # Create JWT token from your original code
             token = jwt.encode({
                 'user_id': saved['user_id'],
                 'username': saved['username'],
@@ -102,10 +107,26 @@ def login():
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=2)
             }, app.config['SECRET_KEY'], algorithm='HS256')
             session['token'] = token
-            return redirect(url_for('dashboard'))
-
+            
+            # Also store user info in session like in your new code
+            session['user'] = {
+                'user_id': saved['user_id'],
+                'username': saved['username'],
+                'isadmin': saved['isadmin']
+            }
+            
+            # Redirect based on role (from your new code)
+            if saved['isadmin'] == 1:
+                return redirect(url_for('admin_dashboard'))
+            elif saved['isadmin'] == 2:
+                return redirect(url_for('admin_dashboard'))
+            elif saved['isadmin'] == 3:
+                return redirect(url_for('admin_dashboard'))
+            else:  # isadmin == 0 (student)
+                return redirect(url_for('dashboard'))
+    
     # GET request: show credentials form
-    return render_template('login.html', otp_required=False)
+    return render_template('login.html', error=error, otp_required=otp_required)
 
 
 @app.route('/signup', methods=['POST'])
@@ -316,14 +337,20 @@ def users():
     user = get_current_user()
     if not user:
         return redirect(url_for('login'))
+    
     conn = connect_db()
     cursor = conn.cursor()
     cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    if not cursor.fetchone()[0]:
+    result = cursor.fetchone()
+    
+    if not result or result[0] not in [1, 2, 3]:
+        # User is not an admin (isadmin = 0) or result is None
         conn.close()
         return redirect(url_for('dashboard'))
+    
     conn.close()
-    return render_template('partials/users.html')
+    print(f"User {user['username']} is an admin with level {result[0]}")
+    return render_template('partials/users.html', isadmin=result[0])
 
 @app.route('/api/users_data')
 def get_users_data():
@@ -428,14 +455,13 @@ def addappointmentslots():
     conn = connect_db()
     cursor = conn.cursor()
     cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    if not cursor.fetchone()[0]:
+    result = cursor.fetchone()
+    if not result or result[0] not in [1, 2]:
         conn.close()
         return redirect(url_for('dashboard'))
-    cursor.execute('SELECT advisor_id, name FROM Advisors')
-    advisors = cursor.fetchall()
     conn.close()
-    return render_template('partials/addappointmentslot.html', advisors=advisors)
-
+    return render_template('partials/addappointmentslot.html', isadmin=result[0])
+       
 @app.route('/api/add_slots', methods=['POST'])
 def add_slots():
     advisor_id = request.form.get('advisor_id')
