@@ -499,6 +499,7 @@ def delete_appointment():
     conn.close()
     return render_template('partials/appointments.html', success='Deleted successfully', isadmin=user['isadmin'])
 
+
 @app.route('/addappointmentslots')
 @role_required(ROLE_ADMIN, ROLE_ADVISOR)
 def addappointmentslots():
@@ -510,18 +511,24 @@ def addappointmentslots():
     # If advisor, only show their own record
     if user['isadmin'] == ROLE_ADVISOR:
         # Check if user exists as an advisor
-        cursor.execute('SELECT advisor_id FROM Advisors WHERE name = ?', (user['username'],))
+        cursor.execute('SELECT advisor_id, name FROM Advisors WHERE name = ?', (user['username'],))
         advisor = cursor.fetchone()
         if not advisor:
             # Create advisor record if not exists
             cursor.execute('INSERT INTO Advisors (name, specialization) VALUES (?, ?)',
                            (user['username'], 'General Advising'))
             conn.commit()
+            cursor.execute('SELECT advisor_id, name FROM Advisors WHERE name = ?', (user['username'],))
+            advisor = cursor.fetchone()
+        advisors = [advisor]  # Only include the advisor's own record
+    else:
+        # For admin, show all advisors
+        cursor.execute('SELECT advisor_id, name FROM Advisors')
+        advisors = cursor.fetchall()
     
-    cursor.execute('SELECT advisor_id, name FROM Advisors')
-    advisors = cursor.fetchall()
     conn.close()
     return render_template('partials/addappointmentslot.html', advisors=advisors, isadmin=user['isadmin'])
+
 @app.route('/api/add_slots', methods=['POST'])
 @role_required(ROLE_ADMIN, ROLE_ADVISOR)
 def add_slots():
@@ -534,36 +541,55 @@ def add_slots():
     # Debug: Print form data
     print(f"Form data: advisor_id={advisor_id}, available_date={available_date}, time_slot={time_slot}")
     
+    conn = connect_db()
+    cursor = conn.cursor()
+    
     # If advisor, force using their own ID
     if user['isadmin'] == ROLE_ADVISOR:
-        conn = connect_db()
-        cursor = conn.cursor()
         cursor.execute('SELECT advisor_id FROM Advisors WHERE name = ?', (user['username'],))
         advisor = cursor.fetchone()
         if advisor:
             advisor_id = advisor[0]
-        conn.close()
+        else:
+            conn.close()
+            return render_template('partials/addappointmentslot.html', error='Advisor not found', 
+                                  advisors=[(None, user['username'])], isadmin=user['isadmin'])
     
+    # For admin, use the advisor_id from the form
     if not (advisor_id and available_date and time_slot):
         print("Validation failed: Missing fields")
-        return render_template('partials/addappointmentslot.html', error='All fields required')
+        cursor.execute('SELECT advisor_id, name FROM Advisors')
+        advisors = cursor.fetchall() if user['isadmin'] == ROLE_ADMIN else [(advisor_id, user['username'])]
+        conn.close()
+        return render_template('partials/addappointmentslot.html', error='All fields required', 
+                              advisors=advisors, isadmin=user['isadmin'])
     
-    conn = connect_db()
-    cursor = conn.cursor()
     try:
         cursor.execute('INSERT INTO Time_Slots (advisor_id, available_date, time_slot, is_booked) VALUES (?, ?, ?, 0)',
                        (advisor_id, available_date, time_slot))
         conn.commit()
-        cursor.execute('SELECT advisor_id, name FROM Advisors')
-        advisors = cursor.fetchall()
+        # Fetch advisors based on role
+        if user['isadmin'] == ROLE_ADVISOR:
+            cursor.execute('SELECT advisor_id, name FROM Advisors WHERE name = ?', (user['username'],))
+            advisors = cursor.fetchall()
+        else:
+            cursor.execute('SELECT advisor_id, name FROM Advisors')
+            advisors = cursor.fetchall()
         conn.close()
         return render_template('partials/addappointmentslot.html', success='Slot added!', 
                               advisors=advisors, isadmin=user['isadmin'])
     except Exception as e:
+        # Fetch advisors based on role for error case
+        if user['isadmin'] == ROLE_ADVISOR:
+            cursor.execute('SELECT advisor_id, name FROM Advisors WHERE name = ?', (user['username'],))
+            advisors = cursor.fetchall()
+        else:
+            cursor.execute('SELECT advisor_id, name FROM Advisors')
+            advisors = cursor.fetchall()
         conn.close()
         print(f"Error: {str(e)}")
         return render_template('partials/addappointmentslot.html', error=str(e),
-                              isadmin=user['isadmin'])
+                              advisors=advisors, isadmin=user['isadmin'])
 
 @app.route('/adddoctor')
 @role_required(ROLE_ADMIN)
@@ -597,13 +623,13 @@ def add_doctor():
                               isadmin=user['isadmin'])
 
 @app.route('/courses')
-@role_required(ROLE_ADMIN, ROLE_ADVISOR, ROLE_ITSTAFF)
+@role_required(ROLE_ADMIN, ROLE_ADVISOR, ROLE_ITSTAFF, ROLE_STUDENT)
 def courses():
     user = get_current_user()
     return render_template('partials/viewallcourses.html', isadmin=user['isadmin'])
 
 @app.route('/api/courses_data', methods=['GET'])
-@role_required(ROLE_ADMIN, ROLE_ADVISOR, ROLE_ITSTAFF)
+@role_required(ROLE_ADMIN, ROLE_ADVISOR, ROLE_ITSTAFF, ROLE_STUDENT)
 def courses_data():
     conn = connect_db()
     cursor = conn.cursor()
@@ -661,7 +687,7 @@ def updatecourse(course_id):
                           course_name=course[0], description=course[1], isadmin=user['isadmin'])
 
 @app.route('/api/update_course/<int:course_id>', methods=['POST'])
-@role_required(ROLE_ADMIN, ROLE_ITSTAFF)
+@role_required(ROLE_ADMIN, ROLE_ITSTAFF , ROLE_ADVISOR)
 def update_course_api(course_id):
     course_name = request.form.get('course_name')
     description = request.form.get('description')

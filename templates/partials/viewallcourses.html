@@ -80,8 +80,11 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
+
                 {% if isadmin == 1 %}
                     <h1>Admin <br> Dashboard</h1>
+                {% elif isadmin == 0 %}
+                    <h1>Student <br> Dashboard</h1>
                 {% elif isadmin == 2 %}
                     <h1>Advisor <br> Dashboard</h1>
                 {% elif isadmin == 3 %}
@@ -89,7 +92,7 @@
                 {% endif %}
             </div>
             <ul class="menu">
-                <!-- <li><a href="{{ url_for('dashboard') }}">Home</a></li> -->
+                
                 {% if isadmin == 1 %}
                     <li><a href="{{ url_for('users') }}">View All Users</a></li>
                     <li><a href="{{ url_for('appointments') }}">View All Appointments</a></li>
@@ -104,6 +107,8 @@
                     <li><a href="{{ url_for('appointments') }}">View All Appointments</a></li>
                 {% elif isadmin == 3 %}
                   <li><a href="{{ url_for('courses') }}">View All Courses</a></li>
+                {% elif isadmin == 0 %}
+                <li><a href="{{ url_for('dashboard') }}">Home</a></li>
                 {% endif %}
                 <li><a href="{{ url_for('logout') }}">Logout</a></li>
             </ul>
@@ -125,7 +130,9 @@
                     <tr>
                         <th>Course Name</th>
                         <th>Description</th>
+                        {% if isadmin == 1 or isadmin == 3 %}
                         <th>Actions</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -147,12 +154,14 @@
                     <tr>
                         <td>${course.course_name}</td>
                         <td>${course.description}</td>
+                        {% if isadmin == 1 or isadmin == 3 %}
                         <td>
                             <a href="/updatecourse/${course.id}">
                                 <button>Update Course</button>
                             </a>
                         </td>
-                    </tr>
+                        {% endif %}
+                        </tr>
                 `).join('');
             })
             .catch(error => console.error('Error loading courses:', error));
