@@ -1,4 +1,3 @@
-# app.py
 import random
 import re
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
@@ -7,9 +6,9 @@ import jwt
 import datetime
 from db.database import init_db, connect_db
 from langchain_groq import ChatGroq
-from populate import hash_password
 from prompts import SYSTEM
 import hashlib
+from functools import wraps
 
 def hash_password(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()
@@ -21,6 +20,12 @@ app.config['SECRET_KEY'] = SECRET_KEY
 # Initialize the database
 init_db()
 
+# Define role constants
+ROLE_STUDENT = 0
+ROLE_ADMIN = 1
+ROLE_ADVISOR = 2
+ROLE_ITSTAFF = 3
+
 # -- Helper to decode JWT and fetch user info --
 def get_current_user():
     token = session.get('token')
@@ -31,6 +36,36 @@ def get_current_user():
         return decoded
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
+
+def get_user_role_name(role_id):
+    roles = {
+        ROLE_STUDENT: "Student",
+        ROLE_ADMIN: "Admin",
+        ROLE_ADVISOR: "Advisor",
+        ROLE_ITSTAFF: "IT Staff"
+    }
+    return roles.get(role_id, "Unknown")
+
+# Role-based access control decorator
+def role_required(*roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            user = get_current_user()
+            if not user:
+                return redirect(url_for('login'))
+            
+            conn = connect_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
+            result = cursor.fetchone()
+            conn.close()
+            
+            if not result or result[0] not in roles:
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 # -- Routes --
 @app.route('/')
@@ -78,7 +113,8 @@ def login():
                 'username': user_name,
                 'isadmin': isadmin
             }
-            print(f"OTP for {user_name} (role {isadmin}): {otp_code}")
+            role_name = get_user_role_name(isadmin)
+            print(f"OTP for {user_name} (role: {role_name}): {otp_code}")
             # Prompt for OTP input
             return render_template('login.html', otp_required=True)
             
@@ -99,7 +135,7 @@ def login():
             session.pop('otp_value', None)
             session.pop('pending_user', None)
             
-            # Create JWT token from your original code
+            # Create JWT token
             token = jwt.encode({
                 'user_id': saved['user_id'],
                 'username': saved['username'],
@@ -108,26 +144,21 @@ def login():
             }, app.config['SECRET_KEY'], algorithm='HS256')
             session['token'] = token
             
-            # Also store user info in session like in your new code
+            # Also store user info in session
             session['user'] = {
                 'user_id': saved['user_id'],
                 'username': saved['username'],
                 'isadmin': saved['isadmin']
             }
             
-            # Redirect based on role (from your new code)
-            if saved['isadmin'] == 1:
+            # Redirect based on role
+            if saved['isadmin'] in [ROLE_ADMIN, ROLE_ADVISOR, ROLE_ITSTAFF]:
                 return redirect(url_for('admin_dashboard'))
-            elif saved['isadmin'] == 2:
-                return redirect(url_for('admin_dashboard'))
-            elif saved['isadmin'] == 3:
-                return redirect(url_for('admin_dashboard'))
-            else:  # isadmin == 0 (student)
+            else:  # isadmin == ROLE_STUDENT (0)
                 return redirect(url_for('dashboard'))
     
     # GET request: show credentials form
     return render_template('login.html', error=error, otp_required=otp_required)
-
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -165,10 +196,10 @@ def signup():
         conn.close()
         return render_template('login.html', error='Email or Username already exists!')
 
-    # 6. Insert
+    # 6. Insert as student (isadmin = ROLE_STUDENT)
     cursor.execute(
-        'INSERT INTO Users (username, email, password) VALUES (?, ?, ?)',
-        (username, email, hashed)
+        'INSERT INTO Users (username, email, password, isadmin) VALUES (?, ?, ?, ?)',
+        (username, email, hashed, ROLE_STUDENT)
     )
     conn.commit()
     conn.close()
@@ -180,26 +211,14 @@ def dashboard():
     user = get_current_user()
     if not user:
         return redirect(url_for('login'))
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE username = ?', (user['username'],))
-    row = cursor.fetchone()
-    conn.close()
-    isadmin = bool(row[0]) if row else False
-    return render_template('dashboard.html', username=user['username'], isadmin=isadmin)
+    return render_template('dashboard.html', username=user['username'], isadmin=user['isadmin'])
 
 @app.route('/faqs')
 def faqs():
     user = get_current_user()
     if not user:
         return redirect(url_for('login'))
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE username = ?', (user['username'],))
-    row = cursor.fetchone()
-    conn.close()
-    isadmin = bool(row[0]) if row else False
-    return render_template('faqs.html', username=user['username'], isadmin=isadmin)
+    return render_template('faqs.html', username=user['username'], isadmin=user['isadmin'])
 
 @app.route('/book_appointment', methods=['GET', 'POST'])
 def book_appointment():
@@ -211,10 +230,7 @@ def book_appointment():
     cursor = conn.cursor()
     cursor.execute('SELECT advisor_id, name FROM Advisors')
     advisors = cursor.fetchall()
-    cursor.execute('SELECT isadmin FROM Users WHERE username = ?', (user['username'],))
-    row = cursor.fetchone()
-    isadmin = bool(row[0]) if row else False
-
+    
     if request.method == 'POST':
         advisor_id = request.form.get('advisor_id')
         appointment_date = request.form.get('appointment_date')
@@ -222,7 +238,7 @@ def book_appointment():
         if not (advisor_id and appointment_date and time_slot):
             conn.close()
             return render_template('book_appointment.html', error='All fields are required!',
-                                   username=user['username'], isadmin=isadmin, advisors=advisors)
+                                   username=user['username'], isadmin=user['isadmin'], advisors=advisors)
         cursor.execute(
             'SELECT slot_id FROM Time_Slots WHERE advisor_id = ? AND available_date = ? '
             'AND time_slot = ? AND is_booked = 0',
@@ -232,7 +248,7 @@ def book_appointment():
         if not slot:
             conn.close()
             return render_template('book_appointment.html', error='Time slot not available!',
-                                   username=user['username'], isadmin=isadmin, advisors=advisors)
+                                   username=user['username'], isadmin=user['isadmin'], advisors=advisors)
         slot_id = slot[0]
         cursor.execute('UPDATE Time_Slots SET is_booked = 1 WHERE slot_id = ?', (slot_id,))
         cursor.execute(
@@ -242,13 +258,13 @@ def book_appointment():
         conn.commit()
         conn.close()
         return render_template('book_appointment.html', success='Appointment booked!',
-                               username=user['username'], isadmin=isadmin, advisors=advisors)
+                               username=user['username'], isadmin=user['isadmin'], advisors=advisors)
 
     # GET
     cursor.execute('SELECT slot_id, available_date, time_slot FROM Time_Slots WHERE is_booked = 0')
     slots = cursor.fetchall()
     conn.close()
-    return render_template('book_appointment.html', username=user['username'], isadmin=isadmin,
+    return render_template('book_appointment.html', username=user['username'], isadmin=user['isadmin'],
                            advisors=advisors, slots=slots)
 
 @app.route('/api/advisors', methods=['GET'])
@@ -274,13 +290,19 @@ def get_available_slots():
 
 @app.route('/api/book_appointment', methods=['POST'])
 def book_appointment_api():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
     data = request.json
-    student_id = data.get('student_id')
+    student_id = user['user_id']  # Force using the logged-in user's ID for security
     advisor_id = data.get('advisor_id')
     appointment_date = data.get('appointment_date')
     time_slot = data.get('time_slot')
-    if not (student_id and advisor_id and appointment_date and time_slot):
+    
+    if not (advisor_id and appointment_date and time_slot):
         return jsonify({'error': 'All fields are required'}), 400
+        
     conn = connect_db()
     cursor = conn.cursor()
     cursor.execute(
@@ -320,39 +342,20 @@ def get_slots():
 
 # -- Admin Panel --
 @app.route('/admin')
+@role_required(ROLE_ADMIN, ROLE_ADVISOR, ROLE_ITSTAFF)
 def admin_dashboard():
     user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    isadmin = bool(cursor.fetchone()[0])
-    conn.close()
-    return render_template('admin.html', username=user['username'], isadmin=isadmin)
+    return render_template('admin.html', username=user['username'], isadmin=user['isadmin'])
 
 # -- Users Management --
 @app.route('/users')
+@role_required(ROLE_ADMIN)
 def users():
     user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
-    
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    result = cursor.fetchone()
-    
-    if not result or result[0] not in [1, 2, 3]:
-        # User is not an admin (isadmin = 0) or result is None
-        conn.close()
-        return redirect(url_for('dashboard'))
-    
-    conn.close()
-    print(f"User {user['username']} is an admin with level {result[0]}")
-    return render_template('partials/users.html', isadmin=result[0])
+    return render_template('partials/users.html', isadmin=user['isadmin'])
 
 @app.route('/api/users_data')
+@role_required(ROLE_ADMIN)
 def get_users_data():
     conn = connect_db()
     cursor = conn.cursor()
@@ -360,29 +363,32 @@ def get_users_data():
     users = cursor.fetchall()
     conn.close()
     return jsonify([
-        {'id': u[0], 'username': u[1], 'email': u[2], 'isadmin': bool(u[3])}
+        {'id': u[0], 'username': u[1], 'email': u[2], 'role': get_user_role_name(u[3]), 'isadmin': u[3]}
         for u in users
     ])
 
 @app.route('/api/toggle_admin', methods=['POST'])
+@role_required(ROLE_ADMIN)
 def toggle_admin():
     user_id = request.form.get('user_id')
+    new_role = int(request.form.get('new_role', ROLE_STUDENT))
+    
     if not user_id:
         return 'User ID required', 400
+    
+    # Validate role value
+    if new_role not in [ROLE_STUDENT, ROLE_ADMIN, ROLE_ADVISOR, ROLE_ITSTAFF]:
+        return 'Invalid role specified', 400
+    
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user_id,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return 'User not found', 404
-    new_status = 0 if row[0] else 1
-    cursor.execute('UPDATE Users SET isadmin = ? WHERE user_id = ?', (new_status, user_id))
+    cursor.execute('UPDATE Users SET isadmin = ? WHERE user_id = ?', (new_role, user_id))
     conn.commit()
     conn.close()
     return redirect(url_for('users'))
 
 @app.route('/api/delete_user', methods=['POST'])
+@role_required(ROLE_ADMIN)
 def delete_user():
     user_id = request.form.get('user_id')
     if not user_id:
@@ -396,34 +402,54 @@ def delete_user():
 
 # -- Appointments Management --
 @app.route('/appointments')
+@role_required(ROLE_ADMIN, ROLE_ADVISOR)
 def appointments():
     user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    if not cursor.fetchone()[0]:
-        conn.close()
-        return redirect(url_for('dashboard'))
-    conn.close()
-    return render_template('partials/appointments.html')
+    return render_template('partials/appointments.html', isadmin=user['isadmin'])
 
 @app.route('/api/appointments_data')
+@role_required(ROLE_ADMIN, ROLE_ADVISOR)
 def get_appointments_data():
+    user = get_current_user()
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('''
-        SELECT a.appointment_id,
-               u.username AS student,
-               adv.name AS advisor,
-               ts.available_date AS appointment_date,
-               ts.time_slot
-        FROM Appointments a
-        LEFT JOIN Users u ON a.student_id = u.user_id
-        LEFT JOIN Advisors adv ON a.advisor_id = adv.advisor_id
-        LEFT JOIN Time_Slots ts ON a.slot_id = ts.slot_id
-    ''')
+    
+    # If advisor, only show their appointments
+    if user['isadmin'] == ROLE_ADVISOR:
+        # Get advisor_id for this user
+        cursor.execute('SELECT advisor_id FROM Advisors WHERE name = ?', (user['username'],))
+        advisor = cursor.fetchone()
+        if advisor:
+            advisor_id = advisor[0]
+            cursor.execute('''
+                SELECT a.appointment_id,
+                       u.username AS student,
+                       adv.name AS advisor,
+                       ts.available_date AS appointment_date,
+                       ts.time_slot
+                FROM Appointments a
+                LEFT JOIN Users u ON a.student_id = u.user_id
+                LEFT JOIN Advisors adv ON a.advisor_id = adv.advisor_id
+                LEFT JOIN Time_Slots ts ON a.slot_id = ts.slot_id
+                WHERE a.advisor_id = ?
+            ''', (advisor_id,))
+        else:
+            # If no advisor record found, return empty list
+            return jsonify([])
+    else:
+        # Admin sees all appointments
+        cursor.execute('''
+            SELECT a.appointment_id,
+                   u.username AS student,
+                   adv.name AS advisor,
+                   ts.available_date AS appointment_date,
+                   ts.time_slot
+            FROM Appointments a
+            LEFT JOIN Users u ON a.student_id = u.user_id
+            LEFT JOIN Advisors adv ON a.advisor_id = adv.advisor_id
+            LEFT JOIN Time_Slots ts ON a.slot_id = ts.slot_id
+        ''')
+    
     appts = cursor.fetchall()
     conn.close()
     return jsonify([
@@ -438,35 +464,90 @@ def get_appointments_data():
     ])
 
 @app.route('/api/delete_appointment', methods=['POST'])
+@role_required(ROLE_ADMIN, ROLE_ADVISOR)
 def delete_appointment():
     appt_id = request.form.get('appointment_id')
+    user = get_current_user()
+    
     conn = connect_db()
     cursor = conn.cursor()
+    
+    # If advisor, verify they own this appointment
+    if user['isadmin'] == ROLE_ADVISOR:
+        # Get advisor_id for this user
+        cursor.execute('SELECT advisor_id FROM Advisors WHERE name = ?', (user['username'],))
+        advisor = cursor.fetchone()
+        if advisor:
+            advisor_id = advisor[0]
+            # Check if appointment belongs to this advisor
+            cursor.execute('SELECT 1 FROM Appointments WHERE appointment_id = ? AND advisor_id = ?', 
+                          (appt_id, advisor_id))
+            if not cursor.fetchone():
+                conn.close()
+                return jsonify({'error': 'Unauthorized'}), 403
+    
+    # Get the slot_id to free up the slot
+    cursor.execute('SELECT slot_id FROM Appointments WHERE appointment_id = ?', (appt_id,))
+    slot = cursor.fetchone()
+    if slot:
+        # Set the slot as available again
+        cursor.execute('UPDATE Time_Slots SET is_booked = 0 WHERE slot_id = ?', (slot[0],))
+    
+    # Delete the appointment
     cursor.execute('DELETE FROM Appointments WHERE appointment_id = ?', (appt_id,))
     conn.commit()
     conn.close()
-    return render_template('partials/appointments.html', success='Deleted successfully')
+    return render_template('partials/appointments.html', success='Deleted successfully', isadmin=user['isadmin'])
 
 @app.route('/addappointmentslots')
+@role_required(ROLE_ADMIN, ROLE_ADVISOR)
 def addappointmentslots():
     user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    result = cursor.fetchone()
-    if not result or result[0] not in [1, 2]:
-        conn.close()
-        return redirect(url_for('dashboard'))
+    
+    # If advisor, only show their own record
+    if user['isadmin'] == ROLE_ADVISOR:
+        # Check if user exists as an advisor
+        cursor.execute('SELECT advisor_id FROM Advisors WHERE name = ?', (user['username'],))
+        advisor = cursor.fetchone()
+        if not advisor:
+            # Create advisor record if not exists
+            cursor.execute('INSERT INTO Advisors (name, specialization) VALUES (?, ?)',
+                           (user['username'], 'General Advising'))
+            conn.commit()
+    
+    cursor.execute('SELECT advisor_id, name FROM Advisors')
+    advisors = cursor.fetchall()
     conn.close()
-    return render_template('partials/addappointmentslot.html', isadmin=result[0])
-       
+    return render_template('partials/addappointmentslot.html', advisors=advisors, isadmin=user['isadmin'])
 @app.route('/api/add_slots', methods=['POST'])
+@role_required(ROLE_ADMIN, ROLE_ADVISOR)
 def add_slots():
     advisor_id = request.form.get('advisor_id')
     available_date = request.form.get('available_date')
     time_slot = request.form.get('time_slot')
+    
+    user = get_current_user()
+    
+    # Debug: Print form data
+    print(f"Form data: advisor_id={advisor_id}, available_date={available_date}, time_slot={time_slot}")
+    
+    # If advisor, force using their own ID
+    if user['isadmin'] == ROLE_ADVISOR:
+        conn = connect_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT advisor_id FROM Advisors WHERE name = ?', (user['username'],))
+        advisor = cursor.fetchone()
+        if advisor:
+            advisor_id = advisor[0]
+        conn.close()
+    
+    if not (advisor_id and available_date and time_slot):
+        print("Validation failed: Missing fields")
+        return render_template('partials/addappointmentslot.html', error='All fields required')
+    
     conn = connect_db()
     cursor = conn.cursor()
     try:
@@ -476,55 +557,53 @@ def add_slots():
         cursor.execute('SELECT advisor_id, name FROM Advisors')
         advisors = cursor.fetchall()
         conn.close()
-        return render_template('partials/addappointmentslot.html', success='Slot added!', advisors=advisors)
+        return render_template('partials/addappointmentslot.html', success='Slot added!', 
+                              advisors=advisors, isadmin=user['isadmin'])
     except Exception as e:
         conn.close()
-        return render_template('partials/addappointmentslot.html', error=str(e))
+        print(f"Error: {str(e)}")
+        return render_template('partials/addappointmentslot.html', error=str(e),
+                              isadmin=user['isadmin'])
 
 @app.route('/adddoctor')
+@role_required(ROLE_ADMIN)
 def adddoctor():
     user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    if not cursor.fetchone()[0]:
-        conn.close()
-        return redirect(url_for('dashboard'))
-    conn.close()
-    return render_template('partials/adddoctor.html')
+    return render_template('partials/adddoctor.html', isadmin=user['isadmin'])
 
 @app.route('/api/add_doctor', methods=['POST'])
+@role_required(ROLE_ADMIN)
 def add_doctor():
     name = request.form.get('name')
     specialization = request.form.get('specialization')
+    
+    if not (name and specialization):
+        return render_template('partials/adddoctor.html', error='All fields required')
+    
     conn = connect_db()
     cursor = conn.cursor()
+    user = get_current_user()
+    
     try:
-        cursor.execute('INSERT INTO Advisors (name, specialization) VALUES (?, ?)', (name, specialization))
+        cursor.execute('INSERT INTO Advisors (name, specialization) VALUES (?, ?)', 
+                      (name, specialization))
         conn.commit()
         conn.close()
-        return render_template('partials/adddoctor.html', success='Doctor added!')
+        return render_template('partials/adddoctor.html', success='Advisor added!',
+                              isadmin=user['isadmin'])
     except Exception as e:
         conn.close()
-        return render_template('partials/adddoctor.html', error=str(e))
+        return render_template('partials/adddoctor.html', error=str(e),
+                              isadmin=user['isadmin'])
 
 @app.route('/courses')
+@role_required(ROLE_ADMIN, ROLE_ADVISOR, ROLE_ITSTAFF)
 def courses():
     user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    if not cursor.fetchone()[0]:
-        conn.close()
-        return redirect(url_for('dashboard'))
-    conn.close()
-    return render_template('partials/viewallcourses.html')
+    return render_template('partials/viewallcourses.html', isadmin=user['isadmin'])
 
 @app.route('/api/courses_data', methods=['GET'])
+@role_required(ROLE_ADMIN, ROLE_ADVISOR, ROLE_ITSTAFF)
 def courses_data():
     conn = connect_db()
     cursor = conn.cursor()
@@ -536,35 +615,62 @@ def courses_data():
     ])
 
 @app.route('/addcourse')
+@role_required(ROLE_ADMIN, ROLE_ITSTAFF)
 def addcourse():
     user = get_current_user()
-    if not user:
-        return redirect(url_for('login'))
+    return render_template('partials/addcourse.html', isadmin=user['isadmin'])
+
+@app.route('/api/add_course', methods=['POST'])
+@role_required(ROLE_ADMIN, ROLE_ITSTAFF)
+def add_course():
+    course_name = request.form.get('course_name')
+    description = request.form.get('description')
+    
+    if not (course_name and description):
+        return render_template('partials/addcourse.html', error='All fields required')
+    
     conn = connect_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT isadmin FROM Users WHERE user_id = ?', (user['user_id'],))
-    if not cursor.fetchone()[0]:
+    user = get_current_user()
+    
+    try:
+        cursor.execute('INSERT INTO Courses (course_name, description) VALUES (?, ?)', 
+                      (course_name, description))
+        conn.commit()
         conn.close()
-        return redirect(url_for('dashboard'))
-    conn.close()
-    return render_template('partials/addcourse.html')
+        return render_template('partials/addcourse.html', success='Course added!',
+                              isadmin=user['isadmin'])
+    except Exception as e:
+        conn.close()
+        return render_template('partials/addcourse.html', error=str(e),
+                              isadmin=user['isadmin'])
 
 @app.route('/updatecourse/<int:course_id>', methods=['GET'])
+@role_required(ROLE_ADMIN, ROLE_ITSTAFF)
 def updatecourse(course_id):
+    user = get_current_user()
     conn = connect_db()
     cursor = conn.cursor()
     cursor.execute('SELECT course_name, description FROM Courses WHERE course_id = ?', (course_id,))
     course = cursor.fetchone()
     conn.close()
     if not course:
-        return render_template('partials/updatecourse.html', error='Course not found')
+        return render_template('partials/updatecourse.html', error='Course not found',
+                              isadmin=user['isadmin'])
     return render_template('partials/updatecourse.html', course_id=course_id,
-                                   course_name=course[0], description=course[1])
+                          course_name=course[0], description=course[1], isadmin=user['isadmin'])
 
 @app.route('/api/update_course/<int:course_id>', methods=['POST'])
+@role_required(ROLE_ADMIN, ROLE_ITSTAFF)
 def update_course_api(course_id):
     course_name = request.form.get('course_name')
     description = request.form.get('description')
+    user = get_current_user()
+    
+    if not (course_name and description):
+        return render_template('partials/updatecourse.html', error='All fields required',
+                             course_id=course_id, isadmin=user['isadmin'])
+    
     conn = connect_db()
     cursor = conn.cursor()
     try:
@@ -572,10 +678,11 @@ def update_course_api(course_id):
                        (course_name, description, course_id))
         conn.commit()
         conn.close()
-        return render_template('partials/viewallcourses.html', success='Course updated!')
+        return redirect(url_for('courses'))
     except Exception as e:
         conn.close()
-        return render_template('partials/viewallcourses.html', error=str(e))
+        return render_template('partials/updatecourse.html', error=str(e),
+                              course_id=course_id, isadmin=user['isadmin'])
 
 # -- Chat Management --
 @app.route('/api/ask', methods=['POST'])
@@ -643,10 +750,55 @@ def get_chat(session_id):
         for c in chats
     ])
 
+# -- Logout Route --
 @app.route('/logout')
 def logout():
     session.pop('token', None)
+    session.pop('user', None)
     return redirect(url_for('index'))
 
+
+@app.route('/advisor/chat_sessions')
+@role_required(ROLE_ADVISOR)
+def advisor_chat_sessions_view():
+    # Advisor and Admin can view all user chat sessions
+    user = get_current_user()
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT cs.session_id,
+               u.username,
+               cs.created_at
+        FROM Chat_Sessions cs
+        JOIN Users u ON cs.user_id = u.user_id
+        ORDER BY cs.created_at DESC
+    ''')
+    sessions = cursor.fetchall()
+    conn.close()
+    return render_template('advisor_chat_sessions.html', sessions=sessions , isadmin=user['isadmin'])
+
+@app.route('/advisor/chat/<int:session_id>')
+@role_required(ROLE_ADVISOR)
+def advisor_view_chat(session_id):
+    # Advisor and Admin can view chats for a specific session
+    user = get_current_user()
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT u.username AS user,
+               c.user_message,
+               c.bot_response,
+               c.timestamp
+        FROM Chats c
+        JOIN Users u ON c.user_id = u.user_id
+        WHERE c.session_id = ?
+        ORDER BY c.timestamp ASC
+    ''', (session_id,))
+    chats = cursor.fetchall()
+    conn.close()
+    return render_template('advisor_view_chat.html', session_id=session_id, chats=chats, isadmin=user['isadmin'])
+
+
+# -- Run the Application --
 if __name__ == '__main__':
-    app.run(host='0.0.0.0' , port=3000, debug=True)
+    app.run(host='0.0.0.0', port=3000, debug=True)

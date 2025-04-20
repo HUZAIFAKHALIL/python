@@ -97,16 +97,32 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h1>Admin <br> Dashboard</h1>
+                {% if isadmin == 1 %}
+                    <h1>Admin <br> Dashboard</h1>
+                {% elif isadmin == 2 %}
+                    <h1>Advisor <br> Dashboard</h1>
+                {% elif isadmin == 3 %}
+                    <h1>IT Staff <br> Dashboard</h1>
+                {% endif %}
             </div>
             <ul class="menu">
-                <li><a href="{{ url_for('dashboard') }}">Home</a></li>
-                <li><a href="{{ url_for('users') }}">View All Users</a></li>
-                <li><a href="{{ url_for('appointments') }}">View All Appointments</a></li>
-                <li><a href="{{ url_for('addappointmentslots') }}">Add Appointment Slots</a></li>
-                <li><a href="{{ url_for('adddoctor') }}">Add Doctor</a></li>
-                <li><a href="{{ url_for('courses') }}">View All Courses</a></li>
-                <li><a href="{{ url_for('addcourse') }}">Add Courses</a></li>
+                <!-- <li><a href="{{ url_for('dashboard') }}">Home</a></li> -->
+                {% if isadmin == 1 %}
+                    <li><a href="{{ url_for('users') }}">View All Users</a></li>
+                    <li><a href="{{ url_for('appointments') }}">View All Appointments</a></li>
+                    <li><a href="{{ url_for('addappointmentslots') }}">Add Appointment Slots</a></li>
+                    <!-- <li><a href="{{ url_for('adddoctor') }}">Add Doctor</a></li> -->
+                    <li><a href="{{ url_for('courses') }}">View All Courses</a></li>
+                    <li><a href="{{ url_for('addcourse') }}">Add Courses</a></li>
+                {% elif isadmin == 2 %}
+                    <li><a href="{{ url_for('advisor_chat_sessions_view') }}">View All Chats</a></li>
+                    <li><a href="{{ url_for('addappointmentslots') }}">Add Appointment Slots</a></li>
+                    <li><a href="{{ url_for('courses') }}">View Study Plan Courses</a></li>
+                    <li><a href="{{ url_for('appointments') }}">View All Appointments</a></li>
+                {% elif isadmin == 3 %}
+                  <li><a href="{{ url_for('courses') }}">View All Courses</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('logout') }}">Logout</a></li>
             </ul>
         </aside>
 

@@ -36,10 +36,11 @@
                     <li><a href="{{ url_for('users') }}">View All Users</a></li>
                     <li><a href="{{ url_for('appointments') }}">View All Appointments</a></li>
                     <li><a href="{{ url_for('addappointmentslots') }}">Add Appointment Slots</a></li>
-                    <li><a href="{{ url_for('adddoctor') }}">Add Doctor</a></li>
+                    <!-- <li><a href="{{ url_for('adddoctor') }}">Add Doctor</a></li> -->
                     <li><a href="{{ url_for('courses') }}">View All Courses</a></li>
                     <li><a href="{{ url_for('addcourse') }}">Add Courses</a></li>
                 {% elif isadmin == 2 %}
+                    <li><a href="{{ url_for('advisor_chat_sessions_view') }}">View All Chats</a></li>
                     <li><a href="{{ url_for('addappointmentslots') }}">Add Appointment Slots</a></li>
                     <li><a href="{{ url_for('courses') }}">View Study Plan Courses</a></li>
                     <li><a href="{{ url_for('appointments') }}">View All Appointments</a></li>
